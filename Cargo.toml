@@ -3,12 +3,14 @@ name = "byor-rs"
 version = "0.1.0"
 edition = "2021"
 
+[registries.crates-io]
+protocol = "sparse"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [workspace]
-members = [
-    "server",
-    "client",
-]
+members = ["server", "client"]
 
 [workspace.dependencies]
 socket2 = "0.4.7"
+log = "0.4.17"
+pretty_env_logger = "0.4.0"
