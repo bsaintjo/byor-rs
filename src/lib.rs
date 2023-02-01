@@ -1,12 +1,12 @@
-use std::io::Read;
+use std::io::{Read, Write};
 
 pub const K_MAX_MSG: usize = 4096;
 
-pub fn read_msg<R>(mut src: R) -> Result<String, Box<dyn std::error::Error>>
+pub fn read_msg<R>(src: &mut R) -> Result<String, Box<dyn std::error::Error>>
 where
     R: Read,
 {
-    let mut read_buffer = [0u8; 4 + K_MAX_MSG + 1];
+    let mut read_buffer = [0u8; 4 + K_MAX_MSG];
     src.read_exact(&mut read_buffer[..4])?;
     let len: [u8; 4] = read_buffer[..4].try_into().unwrap();
     let len: u32 = u32::from_be_bytes(len);
@@ -19,30 +19,38 @@ where
     Ok(client_response.to_string())
 }
 
+pub fn send_msg<W, T>(dst: &mut W, text: T) -> Result<(), Box<dyn std::error::Error>>
+where
+    W: Write,
+    T: AsRef<[u8]>,
+{
+    let text = text.as_ref();
+    let len = text.len();
+    if len > K_MAX_MSG {
+        return Err("Failed to ".into());
+    }
+
+    let len: [u8; 4] = (len as u32).to_be_bytes();
+    let mut write_buffer = [0u8; 4 + K_MAX_MSG];
+    (&mut write_buffer[..4]).write_all(&len)?;
+    (&mut write_buffer[4..]).write_all(text)?;
+    dst.write_all(&write_buffer)?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
-    use std::io::Write;
 
-    use byteorder::{WriteBytesExt, NetworkEndian};
+    use std::io::Cursor;
 
     use super::*;
 
     #[test]
     fn test_read_msg() {
-        const text: &[u8] = b"hello";
-        const len: [u8; 4] = (text.len() as u32).to_le_bytes();
-        let mut buf = [0u8; 9];
-        (&mut buf[..4]).write_u32::<NetworkEndian>(text.len() as u32).unwrap();
-        (&mut buf[4..]).write_all(text).unwrap();
-        let msg = read_msg(buf.as_ref()).unwrap();
+        const TEXT: &[u8] = b"hello";
+        let mut buf = Cursor::new(Vec::new());
+        send_msg(&mut buf, TEXT).unwrap();
+        let msg = read_msg(&mut buf).unwrap();
         assert_eq!("hello".to_string(), msg);
-    }
-
-    #[test]
-    fn test_len_conversion() {
-        let len = 10u32;
-        let res = len.to_le_bytes();
-        let res: u32 = unsafe { std::mem::transmute(res) };
-        assert_eq!(len, res);
     }
 }

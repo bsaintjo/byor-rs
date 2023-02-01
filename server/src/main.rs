@@ -1,6 +1,6 @@
 use std::{
     env,
-    io::{self, Read, Write},
+    io::{Read, Write},
     net::SocketAddr,
 };
 
@@ -25,7 +25,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         log::info!("Waiting to accept new client");
         let (mut accepted_socket, _) = socket.accept()?;
         log::info!("New client!");
-        do_something(&mut accepted_socket)?;
+        one_request(&mut accepted_socket)?;
         log::info!("Completed interaction.")
     }
 }
@@ -47,57 +47,9 @@ fn do_something(accepted_socket: &mut socket2::Socket) -> Result<(), Box<dyn std
     Ok(())
 }
 
-const K_MAX_MSG: usize = 4096;
-
 fn one_request(accepted_socket: &mut socket2::Socket) -> Result<(), Box<dyn std::error::Error>> {
-    let mut read_buffer = [0u8; 4 + K_MAX_MSG + 1];
-    accepted_socket.read_exact(&mut read_buffer[..4])?;
-    let len: [u8; 4] = read_buffer[..4].try_into().unwrap();
-    let len: u32 = unsafe { std::mem::transmute(len) };
-    if len > (K_MAX_MSG as u32) {
-        return Err(format!("len {len} is longer than K_MAX_MSG: {K_MAX_MSG}").into());
-    }
-    let msg_span = 4..4 + (len as usize);
-    accepted_socket.read_exact(&mut read_buffer[msg_span.clone()])?;
-    let client_response = std::str::from_utf8(&read_buffer[msg_span])?;
+    let client_response = byor::read_msg(accepted_socket)?;
     println!("Client says: {client_response}");
-
-    const REPLY: &[u8; 5] = b"world";
-    let mut write_buffer = [0u8; 4 + REPLY.len()];
-    let reply_len: [u8; 4] = (REPLY.len() as u32).to_be_bytes();
-    (&mut write_buffer[..4]).write_all(&reply_len)?;
-    (&mut write_buffer[4..]).write_all(REPLY)?;
-    accepted_socket.write_all(&write_buffer)?;
-
-    Ok(())
-}
-
-fn receive_client_message<R>(src: &mut R) -> Result<String, Box<dyn std::error::Error>>
-where
-    R: Read,
-{
-    let mut read_buffer = [0u8; 4 + K_MAX_MSG + 1];
-    src.read_exact(&mut read_buffer[..4])?;
-    let len: [u8; 4] = read_buffer[..4].try_into().unwrap();
-    let len: u32 = unsafe { std::mem::transmute(len) };
-    if len > (K_MAX_MSG as u32) {
-        return Err(format!("len {len} is longer than K_MAX_MSG: {K_MAX_MSG}").into());
-    }
-    let msg_span = 4..4 + (len as usize);
-    src.read_exact(&mut read_buffer[msg_span.clone()])?;
-    let client_response = std::str::from_utf8(&read_buffer[msg_span])?;
-    Ok(client_response.to_string())
-}
-
-fn send_client_world<W>(dst: &mut W) -> Result<(), Box<dyn std::error::Error>>
-where
-    W: Write,
-{
-    const REPLY: &[u8; 5] = b"world";
-    let mut write_buffer = [0u8; 4 + REPLY.len()];
-    let reply_len: [u8; 4] = (REPLY.len() as u32).to_be_bytes();
-    (&mut write_buffer[..4]).write_all(&reply_len)?;
-    (&mut write_buffer[4..]).write_all(REPLY)?;
-    dst.write_all(&write_buffer)?;
+    byor::send_msg(accepted_socket, "world!")?;
     Ok(())
 }
