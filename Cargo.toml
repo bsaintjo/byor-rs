@@ -1,5 +1,5 @@
 [package]
-name = "byor-rs"
+name = "byor"
 version = "0.1.0"
 edition = "2021"
 
@@ -14,3 +14,7 @@ members = ["server", "client"]
 socket2 = "0.4.7"
 log = "0.4.17"
 pretty_env_logger = "0.4.0"
+byteorder = "1.4.3"
+
+[dependencies]
+byteorder = { workspace = true }
