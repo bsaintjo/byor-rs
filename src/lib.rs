@@ -50,6 +50,7 @@ mod tests {
         const TEXT: &[u8] = b"hello";
         let mut buf = Cursor::new(Vec::new());
         send_msg(&mut buf, TEXT).unwrap();
+        buf.set_position(0);
         let msg = read_msg(&mut buf).unwrap();
         assert_eq!("hello".to_string(), msg);
     }

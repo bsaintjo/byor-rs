@@ -18,3 +18,7 @@ byteorder = "1.4.3"
 
 [dependencies]
 byteorder = { workspace = true }
+
+[dev-dependencies]
+server = { path = "server" }
+client = { path = "client" }
