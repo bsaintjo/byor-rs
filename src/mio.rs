@@ -1,19 +1,57 @@
-use std::os::fd::AsRawFd;
+use std::{collections::HashMap, os::fd::AsRawFd};
 
-use mio::{unix::SourceFd, Interest, Poll, Token};
+use mio::{unix::SourceFd, Events, Interest, Poll, Token};
+use socket2::Socket;
 
 use crate::startup;
 
 pub fn event_loop() -> Result<(), Box<dyn std::error::Error>> {
+    let mut clients: HashMap<Token, Socket> = HashMap::new();
     let server = startup::server_init()?;
-    let mut index = 0;
-    let server_token = Token(index);
-    index += 1;
-    let poll = Poll::new()?;
+    const SERVER: Token = Token(0);
+    let mut index = 1;
+    let mut poll = Poll::new()?;
+    let mut events = Events::with_capacity(1024);
     poll.registry().register(
         &mut SourceFd(&server.as_raw_fd()),
-        server_token,
+        SERVER,
         Interest::READABLE,
     )?;
+    loop {
+        poll.poll(&mut events, None)?;
+        for event in events.iter() {
+            match event.token() {
+                SERVER => {
+                    log::info!("Server event");
+                    let (client_socket, _) = server.accept()?;
+                    poll.registry().register(
+                        &mut SourceFd(&client_socket.as_raw_fd()),
+                        Token(index),
+                        Interest::READABLE,
+                    )?;
+                    clients.insert(Token(index), client_socket);
+                    index = index.wrapping_add(1);
+                }
+                client_token if event.is_readable() => {
+                    log::info!("Reading from client");
+                    let source = clients.get(&client_token).unwrap();
+                    poll.registry().reregister(
+                        &mut SourceFd(&source.as_raw_fd()),
+                        client_token,
+                        Interest::WRITABLE,
+                    )?;
+                }
+                client_token if event.is_writable() => {
+                    log::info!("Writing to client");
+                    let source = clients.get(&client_token).unwrap();
+                    poll.registry()
+                        .deregister(&mut SourceFd(&source.as_raw_fd()))?;
+                }
+                client_token => {
+                    log::warn!("File descriptor for Token {client_token:?} is neither readable nor writable, skipping...");
+                }
+            }
+        }
+    }
     Ok(())
 }

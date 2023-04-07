@@ -1,7 +1,7 @@
 pub mod mio;
 pub mod connection;
 pub mod polling;
-pub mod epoll;
+// pub mod epoll;
 pub mod startup;
 
 use std::io::{Read, Write};
