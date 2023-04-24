@@ -3,7 +3,7 @@ use std::{collections::HashMap, os::fd::AsRawFd};
 use mio::{unix::SourceFd, Events, Interest, Poll, Token};
 use socket2::Socket;
 
-use crate::startup;
+use crate::{startup, read_msg, send_msg};
 
 pub fn event_loop() -> Result<(), Box<dyn std::error::Error>> {
     let mut clients: HashMap<Token, Socket> = HashMap::new();
@@ -35,15 +35,18 @@ pub fn event_loop() -> Result<(), Box<dyn std::error::Error>> {
                 client_token if event.is_readable() => {
                     log::info!("Reading from client");
                     let source = clients.get(&client_token).unwrap();
+                    let msg = read_msg(source)?;
                     poll.registry().reregister(
                         &mut SourceFd(&source.as_raw_fd()),
                         client_token,
                         Interest::WRITABLE,
                     )?;
+                    println!("Message from client: {}", msg);
                 }
                 client_token if event.is_writable() => {
                     log::info!("Writing to client");
                     let source = clients.get(&client_token).unwrap();
+                    send_msg(source, "Hello from server")?;
                     poll.registry()
                         .deregister(&mut SourceFd(&source.as_raw_fd()))?;
                 }
